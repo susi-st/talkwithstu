@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 針對手機最佳化，防止使用者點擊時畫面放大縮小 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>學生生活表現紀錄 APP</title>
+
+    <!-- 載入 Tailwind CSS (用於介面排版與美化) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 載入 React 核心庫 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- 載入 Babel (讓瀏覽器看得懂 JSX 語法) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 處理 iOS 底部安全區域 (Safe Area) */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        body { margin: 0; padding: 0; background-color: #f3f4f6; }
+    </style>
+</head>
+<body>
+    <!-- React APP 將會渲染在這裡 -->
+    <div id="root"></div>
+
+    <!-- 程式碼主體 -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // 將學生名單分為女生與男生 (已加入座號，格式為 "座號-姓名")
+        const GIRLS_LIST = [
+            "1-楊子青", "2-魏寧妤", "3-吳紫妍", "4-張子琦", "5-林愷昕", "6-徐莉婕", "7-江凱璇", 
+            "8-黃喜苓", "9-譚日晰", "10-魏千紜", "11-賴品汝", "12-林芊亞", "13-江嘉純", "14-王潔心"
+        ];
+
+        const BOYS_LIST = [
+            "15-林暐倫", "16-温家亮", "17-蘇楦紘", "18-趙毅亮", "19-王長綸", "20-周楹家", 
+            "21-李至昇", "22-廖雲旭", "23-林秉昇", "24-邱子瀚", "25-陳奕銨", "26-林汶謙", 
+            "27-賴雨陞", "28-姚天裕", "29-施澄昊"
+        ];
+
+        const CONTACT_OPTIONS = ["學生本人", "爸爸", "媽媽", "阿公", "阿嬤"];
+        const INTERVIEWER_OPTIONS = ["導師", "專輔", "生教", "學務主任", "科任老師", "資源班老師"];
+        
+        // 新增節次與時間選項
+        const PERIOD_OPTIONS = ["早修", "第一節", "第二節", "第三節", "第四節", "午休", "第五節", "第六節", "第七節", "第八節"];
+        const TIME_OPTIONS = ["上課前", "上課期間", "下課後"];
+        
+        // 新增訪談方式選項
+        const METHOD_OPTIONS = ["電話訪談", "個別訪談", "家庭訪視", "團體輔導"];
+
+        function App() {
+            const [selectedStudents, setSelectedStudents] = useState([]);
+            const [isWholeClass, setIsWholeClass] = useState(false);
+            
+            const [behaviorText, setBehaviorText] = useState("");
+            const [summaryText, setSummaryText] = useState("");
+            const [selectedContacts, setSelectedContacts] = useState([CONTACT_OPTIONS[0]]); // 預設：學生本人
+            const [selectedInterviewer, setSelectedInterviewer] = useState(INTERVIEWER_OPTIONS[0]);
+            
+            // 綁定 Textarea 以便操作游標位置
+            const textareaRef = useRef(null);
+
+            // 新增週曆相關狀態
+            const [selectedDate, setSelectedDate] = useState(new Date());
+            const [viewWeekStart, setViewWeekStart] = useState(() => {
+                const d = new Date();
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 將星期日(0)轉換為週末，確保週一為每週第一天
+                d.setDate(diff);
+                d.setHours(0, 0, 0, 0);
+                return d;
+            });
+
+            // 下拉選單狀態
+            const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[1]); // 預設: 第一節
+            const [selectedTime, setSelectedTime] = useState(TIME_OPTIONS[1]);     // 預設: 上課期間
+
+            const [selectedMethod, setSelectedMethod] = useState("個別訪談"); // 預設: 個別訪談
+            const [recordCategory, setRecordCategory] = useState("日常表現"); // 新增：記錄分類狀態
+
+            // 產生當前週的 7 天
+            const weekDays = [...Array(7)].map((_, i) => {
+                const d = new Date(viewWeekStart);
+                d.setDate(d.getDate() + i);
+                return d;
+            });
+
+            // 切換上一週
+            const handlePrevWeek = () => {
+                const newStart = new Date(viewWeekStart);
+                newStart.setDate(newStart.getDate() - 7);
+                setViewWeekStart(newStart);
+            };
+
+            // 切換下一週
+            const handleNextWeek = () => {
+                const newStart = new Date(viewWeekStart);
+                newStart.setDate(newStart.getDate() + 7);
+                setViewWeekStart(newStart);
+            };
+
+            // 加入指定日期時間到游標位置
+            const handleAddContext = () => {
+                const d = selectedDate;
+                const dayStr = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+                const insertText = `${d.getMonth() + 1}/${d.getDate()}(${dayStr})${selectedPeriod}${selectedTime}`;
+                
+                const textarea = textareaRef.current;
+                if (textarea) {
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const newText = behaviorText.substring(0, start) + insertText + behaviorText.substring(end);
+                    setBehaviorText(newText);
+                    
+                    // 恢復焦點並將游標移到插入文字的後方
+                    setTimeout(() => {
+                        textarea.focus();
+                        textarea.setSelectionRange(start + insertText.length, start + insertText.length);
+                    }, 0);
+                } else {
+                    setBehaviorText(prev => prev + insertText);
+                }
+            };
+
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            
+            const [gasUrl, setGasUrl] = useState("https://script.google.com/macros/s/AKfycbykbyUihDBPDWSOfGs-GBRl79xzKfXEAW5YhAkIQb6x3AB7_h0qQQn_D4X447tO-CVFWw/exec");
+            const [geminiApiKey, setGeminiApiKey] = useState("");
+            const [isSummarizing, setIsSummarizing] = useState(false);
+
+            useEffect(() => {
+                const savedUrl = localStorage.getItem('gasUrl');
+                if (savedUrl) setGasUrl(savedUrl);
+                const savedKey = localStorage.getItem('geminiApiKey');
+                if (savedKey) setGeminiApiKey(savedKey);
+            }, []);
+
+            const handleSaveUrl = () => {
+                localStorage.setItem('gasUrl', gasUrl);
+                localStorage.setItem('geminiApiKey', geminiApiKey);
+                setShowSettings(false);
+                alert("設定已儲存！");
+            };
+
+            const toggleStudent = (student) => {
+                if (isWholeClass) setIsWholeClass(false);
+                if (selectedStudents.includes(student)) {
+                    setSelectedStudents(selectedStudents.filter(s => s !== student));
+                } else {
+                    setSelectedStudents([...selectedStudents, student]);
+                }
+            };
+
+            const toggleWholeClass = () => {
+                const newValue = !isWholeClass;
+                setIsWholeClass(newValue);
+                if (newValue) {
+                    setSelectedStudents([]); // 選全班時清空個別選取
+                    setSelectedMethod("團體輔導");
+                }
+            };
+
+            const toggleContact = (contact) => {
+                if (selectedContacts.includes(contact)) {
+                    setSelectedContacts(selectedContacts.filter(c => c !== contact));
+                } else {
+                    setSelectedContacts([...selectedContacts, contact]);
+                }
+            };
+
+            const handleGenerateSummary = async () => {
+                if (!behaviorText.trim()) {
+                    alert("請先輸入內容要點！");
+                    return;
+                }
+                if (!geminiApiKey) {
+                    alert("請先至「設定」輸入 Gemini API Key 才能使用 AI 自動生成功能！\n（作為替代，已自動為您擷取前 15 個字）");
+                    setSummaryText(behaviorText.length > 15 ? behaviorText.substring(0, 15) + '...' : behaviorText);
+                    return;
+                }
+
+                setIsSummarizing(true);
+                try {
+                    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: `請將以下學生行為紀錄，濃縮成 15 個字以內的極簡短聯絡事項摘要，不要有引言、不要標點符號結尾：\n\n${behaviorText}` }] }]
+                        })
+                    });
+                    if (aiResponse.ok) {
+                        const data = await aiResponse.json();
+                        let summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+                        summary = summary.replace(/^["']|["']$/g, ''); 
+                        setSummaryText(summary); 
+                    } else {
+                        alert("AI 生成失敗，請檢查 API Key 或網路連線。");
+                    }
+                } catch (e) {
+                    console.error("AI 摘要失敗", e);
+                    alert("連線到 AI 服務時發生錯誤。");
+                } finally {
+                    setIsSummarizing(false);
+                }
+            };
+
+            const handleSubmit = async () => {
+                if (!gasUrl) {
+                    alert("請先點擊右上角「設定」填寫您的 Google Apps Script 網址！");
+                    setShowSettings(true);
+                    return;
+                }
+                if (selectedStudents.length === 0 && !isWholeClass) {
+                    alert("請選擇至少一位學生或全班！");
+                    return;
+                }
+                if (!selectedMethod) {
+                    alert("請選擇訪談方式！");
+                    return;
+                }
+                if (!behaviorText.trim()) {
+                    alert("請輸入內容要點！");
+                    return;
+                }
+
+                setIsSubmitting(true);
+
+                try {
+                    let finalSummary = summaryText.trim();
+                    if (!finalSummary) {
+                        finalSummary = behaviorText.length > 15 ? behaviorText.substring(0, 15) + '...' : behaviorText;
+                    }
+
+                    const today = new Date();
+                    const formattedDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+                    const timestamp = today.toLocaleString('zh-TW', { hour12: false });
+
+                    const contacts = [...selectedContacts];
+                    const contactString = contacts.join('、');
+
+                    const records = [];
+                    const studentsToProcess = isWholeClass ? ["全班"] : selectedStudents;
+
+                    studentsToProcess.forEach(student => {
+                        records.push({
+                            timestamp: timestamp,
+                            targetStudent: student,
+                            date: formattedDate,
+                            interviewer: selectedInterviewer,
+                            contactString: contactString,
+                            summary: finalSummary,
+                            content: behaviorText,
+                            method: selectedMethod,
+                            category: recordCategory
+                        });
+                    });
+
+                    const response = await fetch(gasUrl, {
+                        method: "POST",
+                        body: JSON.stringify(records),
+                    });
+
+                    if (response.ok) {
+                        alert("資料已成功送出！");
+                        setSelectedStudents([]);
+                        setIsWholeClass(false);
+                        setBehaviorText("");
+                        setSummaryText("");
+                        setSelectedContacts([CONTACT_OPTIONS[0]]); // 重置回預設：學生本人
+                        setSelectedInterviewer(INTERVIEWER_OPTIONS[0]);
+                        setSelectedDate(new Date());
+                        setSelectedPeriod(PERIOD_OPTIONS[1]);
+                        setSelectedTime(TIME_OPTIONS[1]);
+                        setSelectedMethod("個別訪談");
+                        setRecordCategory("日常表現");
+                    } else {
+                        alert("傳送失敗，請檢查網址或網路狀態。");
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert("傳送發生錯誤：" + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            // 準備合併後的顯示名單
+            const displayStudents = [...GIRLS_LIST, ...BOYS_LIST];
+
+            return (
+                <div className="h-screen w-full bg-gray-100 flex flex-col font-sans overflow-hidden">
+                    {/* 頂部導覽列 */}
+                    <div className="bg-blue-600 text-white p-3 flex justify-between items-center shadow-md shrink-0">
+                        <h1 className="text-lg font-bold">學生生活表現紀錄</h1>
+                        <button 
+                            onClick={() => setShowSettings(!showSettings)}
+                            className="bg-blue-700 px-3 py-1 rounded text-sm hover:bg-blue-800"
+                        >
+                            設定
+                        </button>
+                    </div>
+
+                    {/* 設定區塊 */}
+                    {showSettings && (
+                        <div className="bg-white p-4 shadow-md shrink-0 border-b z-10 space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Google Apps Script 網址</label>
+                                <input 
+                                    type="text" 
+                                    value={gasUrl} 
+                                    onChange={(e) => setGasUrl(e.target.value)}
+                                    className="w-full border p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    placeholder="貼上您的 Web App URL..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                                    <span>Gemini API Key</span>
+                                    <span className="text-blue-500 text-xs">(選填：啟用 AI 自動摘要)</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    value={geminiApiKey} 
+                                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                                    className="w-full border p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    placeholder="貼上您的 API Key..."
+                                />
+                            </div>
+                            <button onClick={handleSaveUrl} className="w-full bg-green-500 text-white py-2 rounded font-bold mt-2 shadow">
+                                儲存設定
+                            </button>
+                        </div>
+                    )}
+
+                    {/* 上半部：目標學生 (佔一半畫面並可滾動) */}
+                    <div className="flex-1 overflow-y-auto p-3 bg-white border-b-2 border-gray-300">
+                        
+                        {/* 標題 */}
+                        <h2 className="text-sm font-bold text-gray-600 mb-2">目標學生 (可多選)</h2>
+
+                        {/* 學生名單展開區：按鈕寬度再縮小，gap 也微縮以容納更多按鈕 */}
+                        <div className="flex flex-wrap gap-1.5 pb-2">
+                            {displayStudents.map(student => {
+                                const isBoy = BOYS_LIST.includes(student);
+                                const isSelected = selectedStudents.includes(student) && !isWholeClass;
+                                
+                                // 分離座號與姓名，並將姓名第二個字遮蔽為 "○"
+                                const [id, name] = student.split('-');
+                                const maskedName = name ? name.substring(0, 1) + '○' + name.substring(2) : student;
+                                // 依照需求，按鈕上僅顯示遮蔽後的姓名
+                                const displayText = maskedName;
+
+                                return (
+                                    <button
+                                        key={student}
+                                        onClick={() => toggleStudent(student)}
+                                        className={`py-1.5 px-2 rounded-lg text-[13px] sm:text-sm font-medium tracking-tight transition-colors w-auto border ${
+                                            isSelected
+                                                ? (isBoy ? 'bg-blue-500 text-white border-blue-600 shadow-inner' : 'bg-pink-500 text-white border-pink-600 shadow-inner') 
+                                                : (isBoy ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' : 'bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-100')
+                                        }`}
+                                    >
+                                        {displayText}
+                                    </button>
+                                );
+                            })}
+                            
+                            {/* 全班按鈕接在最後一個學生之後 */}
+                            <button
+                                onClick={toggleWholeClass}
+                                className={`py-1.5 px-2 rounded-lg text-[13px] sm:text-sm font-medium tracking-tight transition-colors w-auto border ${
+                                    isWholeClass 
+                                        ? 'bg-purple-600 text-white border-purple-700 shadow-inner' 
+                                        : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-200'
+                                }`}
+                            >
+                                全班
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 下半部：表單與操作 (佔另一半) */}
+                    <div className="flex-1 flex flex-col p-3 bg-gray-50 overflow-y-auto">
+                        
+                        {/* 1. 聯絡對象與訪談者 */}
+                        <div className="shrink-0 mb-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-bold text-gray-600">聯絡對象</span>
+                                {CONTACT_OPTIONS.map(contact => (
+                                    <button
+                                        key={contact}
+                                        onClick={() => toggleContact(contact)}
+                                        className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
+                                            selectedContacts.includes(contact)
+                                                ? 'bg-green-500 text-white shadow-md'
+                                                : 'bg-white border border-gray-300 text-gray-700'
+                                        }`}
+                                    >
+                                        {contact}
+                                    </button>
+                                ))}
+                                
+                                <span className="text-sm font-bold text-gray-600 ml-2">訪談者</span>
+                                {INTERVIEWER_OPTIONS.map(interviewer => (
+                                    <button
+                                        key={interviewer}
+                                        onClick={() => setSelectedInterviewer(interviewer)}
+                                        className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
+                                            selectedInterviewer === interviewer
+                                                ? 'bg-orange-500 text-white shadow-md'
+                                                : 'bg-white border border-gray-300 text-gray-700'
+                                        }`}
+                                    >
+                                        {interviewer}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 週曆元件 (從上半部移至此處) */}
+                        <div className="shrink-0 bg-white p-2 pb-3 rounded-xl border border-gray-200 shadow-sm mb-3">
+                            <div className="flex items-end justify-between">
+                                {/* 上一週按鈕 */}
+                                <button onClick={handlePrevWeek} className="p-1 mb-0.5 text-gray-400 hover:text-black focus:outline-none shrink-0">
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                </button>
+                                
+                                {/* 日期與星期垂直對齊群組 */}
+                                <div className="flex-1 flex justify-between px-1 sm:px-3">
+                                    {weekDays.map((date, i) => {
+                                        const isSelected = date.toDateString() === selectedDate.toDateString();
+                                        const isToday = date.toDateString() === new Date().toDateString();
+                                        const dayOfWeek = date.getDay() || 7; // 將0(日)轉換為7以便排序
+                                        const dayLabels = ['日', '一', '二', '三', '四', '五', '六', '日'];
+                                        
+                                        return (
+                                            <div key={date.toISOString()} className="flex flex-col items-center gap-1.5">
+                                                <span className={`text-[11px] font-bold ${dayOfWeek === 6 ? 'text-green-500' : dayOfWeek === 7 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                    {dayLabels[dayOfWeek]}
+                                                </span>
+                                                <button
+                                                    onClick={() => setSelectedDate(date)}
+                                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold transition-colors
+                                                        ${isSelected ? 'bg-blue-500 text-white shadow-md' : 'hover:bg-gray-100'}
+                                                        ${!isSelected && isToday ? 'ring-2 ring-blue-300' : ''}
+                                                        ${!isSelected && dayOfWeek === 6 ? 'text-green-600' : ''}
+                                                        ${!isSelected && dayOfWeek === 7 ? 'text-red-600' : ''}
+                                                        ${!isSelected && dayOfWeek < 6 && !isToday ? 'text-gray-700' : ''}
+                                                    `}
+                                                >
+                                                    {date.getDate()}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* 下一週按鈕 */}
+                                <button onClick={handleNextWeek} className="p-1 mb-0.5 text-gray-400 hover:text-black focus:outline-none shrink-0">
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 2. 內容要點 (結合日期下拉選單與加入按鈕) */}
+                        <div className="flex-1 flex flex-col mb-3 min-h-[100px]">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <h2 className="text-sm font-bold text-gray-600">內容要點</h2>
+                                <div className="flex items-center gap-1 ml-auto">
+                                    <select 
+                                        value={selectedPeriod} 
+                                        onChange={(e) => setSelectedPeriod(e.target.value)} 
+                                        className="text-xs p-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {PERIOD_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                    <select 
+                                        value={selectedTime} 
+                                        onChange={(e) => setSelectedTime(e.target.value)} 
+                                        className="text-xs p-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {TIME_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                    <button 
+                                        onClick={handleAddContext} 
+                                        className="bg-blue-500 text-white text-xs px-2 py-1.5 rounded shadow hover:bg-blue-600 active:bg-blue-700 transition-colors font-bold whitespace-nowrap"
+                                    >
+                                        加入指定日期時間
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea
+                                ref={textareaRef}
+                                value={behaviorText}
+                                onChange={(e) => setBehaviorText(e.target.value)}
+                                className="flex-1 w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 text-base leading-relaxed"
+                                placeholder="請輸入內容要點... (利用上方按鈕可插入時間到游標處)"
+                            />
+                        </div>
+
+                        {/* 連絡事項 (AI按鈕取代標題) */}
+                        <div className="shrink-0 mb-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                            <button
+                                onClick={handleGenerateSummary}
+                                disabled={isSummarizing || !behaviorText.trim()}
+                                className={`px-3 py-2 rounded-lg text-xs font-bold shadow transition-colors flex items-center justify-center gap-1 whitespace-nowrap w-fit ${
+                                    isSummarizing || !behaviorText.trim() 
+                                        ? 'bg-gray-300 text-gray-500' 
+                                        : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:opacity-90 active:scale-95'
+                                }`}
+                            >
+                                {isSummarizing ? (
+                                    <span className="flex items-center gap-1">
+                                        <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        AI 思考中
+                                    </span>
+                                ) : '✨ 生成連絡事項'}
+                            </button>
+                            <input
+                                type="text"
+                                value={summaryText}
+                                onChange={(e) => setSummaryText(e.target.value)}
+                                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm font-medium text-gray-800"
+                                placeholder="點選左側按鈕由 AI 生成，或在此手動輸入..."
+                            />
+                        </div>
+
+                        {/* 3. 訪談方式、記錄分類開關 & 完成按鈕 */}
+                        <div className="shrink-0 space-y-3 pb-safe">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-bold text-gray-600 whitespace-nowrap">訪談方式</span>
+                                {METHOD_OPTIONS.map(method => (
+                                    <button
+                                        key={method}
+                                        onClick={() => setSelectedMethod(method)}
+                                        className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
+                                            selectedMethod === method
+                                                ? 'bg-indigo-500 text-white shadow-md'
+                                                : 'bg-white border border-gray-300 text-gray-700'
+                                        }`}
+                                    >
+                                        {method}
+                                    </button>
+                                ))}
+
+                                {/* 記錄分類切換開關 */}
+                                <div className="ml-auto flex items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-600 whitespace-nowrap">記錄分類</span>
+                                    <div 
+                                        onClick={() => setRecordCategory(prev => prev === "日常表現" ? "輔導訪談" : "日常表現")}
+                                        className="flex items-center bg-gray-200 rounded-full p-0.5 cursor-pointer select-none"
+                                    >
+                                        <div className={`px-2.5 py-1 text-xs font-bold rounded-full transition-colors ${recordCategory === "日常表現" ? 'bg-blue-500 text-white shadow-md' : 'text-gray-500'}`}>
+                                            日常表現
+                                        </div>
+                                        <div className={`px-2.5 py-1 text-xs font-bold rounded-full transition-colors ${recordCategory === "輔導訪談" ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500'}`}>
+                                            輔導訪談
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isSubmitting}
+                                className={`w-full py-4 rounded-xl text-lg font-bold shadow-lg transition-transform active:scale-95 ${
+                                    isSubmitting ? 'bg-gray-400 text-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                            >
+                                {isSubmitting ? '傳送資料中...' : '完 成'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
