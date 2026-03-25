@@ -42,7 +42,8 @@
             "27-賴雨陞", "28-姚天裕", "29-施澄昊"
         ];
 
-        const CONTACT_OPTIONS = ["學生本人", "爸爸", "媽媽", "阿公", "阿嬤"];
+        // 將"學生本人"顯示改為"學生"，後端送出時再轉換
+        const CONTACT_OPTIONS = ["學生", "爸爸", "媽媽", "阿公", "阿嬤"];
         const INTERVIEWER_OPTIONS = ["導師", "專輔", "生教", "學務主任", "科任老師", "資源班老師"];
         
         // 新增節次與時間選項
@@ -55,11 +56,12 @@
         function App() {
             const [selectedStudents, setSelectedStudents] = useState([]);
             const [isWholeClass, setIsWholeClass] = useState(false);
+            const [isStudentListExpanded, setIsStudentListExpanded] = useState(true); // 新增：控制學生名單收合
             
             const [behaviorText, setBehaviorText] = useState("");
             const [summaryText, setSummaryText] = useState("");
-            const [selectedContacts, setSelectedContacts] = useState([CONTACT_OPTIONS[0]]); // 預設：學生本人
-            const [selectedInterviewer, setSelectedInterviewer] = useState(INTERVIEWER_OPTIONS[0]);
+            const [selectedContacts, setSelectedContacts] = useState([CONTACT_OPTIONS[0]]); // 預設：學生
+            const [selectedInterviewer, setSelectedInterviewer] = useState(INTERVIEWER_OPTIONS[0]); // 預設：導師
             
             // 綁定 Textarea 以便操作游標位置
             const textareaRef = useRef(null);
@@ -80,7 +82,7 @@
             const [selectedTime, setSelectedTime] = useState(TIME_OPTIONS[1]);     // 預設: 上課期間
 
             const [selectedMethod, setSelectedMethod] = useState("個別訪談"); // 預設: 個別訪談
-            const [recordCategory, setRecordCategory] = useState("日常表現"); // 新增：記錄分類狀態
+            const [recordCategory, setRecordCategory] = useState("日常表現"); // 預設：日常表現
 
             // 產生當前週的 7 天
             const weekDays = [...Array(7)].map((_, i) => {
@@ -240,8 +242,9 @@
                     const formattedDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
                     const timestamp = today.toLocaleString('zh-TW', { hour12: false });
 
-                    const contacts = [...selectedContacts];
-                    const contactString = contacts.join('、');
+                    // 將畫面上顯示的「學生」轉換回記錄用的「學生本人」
+                    const formattedContacts = selectedContacts.map(c => c === "學生" ? "學生本人" : c);
+                    const contactString = formattedContacts.join('、');
 
                     const records = [];
                     const studentsToProcess = isWholeClass ? ["全班"] : selectedStudents;
@@ -271,8 +274,8 @@
                         setIsWholeClass(false);
                         setBehaviorText("");
                         setSummaryText("");
-                        setSelectedContacts([CONTACT_OPTIONS[0]]); // 重置回預設：學生本人
-                        setSelectedInterviewer(INTERVIEWER_OPTIONS[0]);
+                        setSelectedContacts([CONTACT_OPTIONS[0]]); // 重置回預設：學生
+                        setSelectedInterviewer(INTERVIEWER_OPTIONS[0]); // 重置回預設：導師
                         setSelectedDate(new Date());
                         setSelectedPeriod(PERIOD_OPTIONS[1]);
                         setSelectedTime(TIME_OPTIONS[1]);
@@ -337,219 +340,229 @@
                         </div>
                     )}
 
-                    {/* 上半部：目標學生 (佔一半畫面並可滾動) */}
-                    <div className="flex-1 overflow-y-auto p-3 bg-white border-b-2 border-gray-300">
+                    {/* 主體滾動區域：取消上下固定的 flex-1 切割，改由全頁自然滾動以消除多餘空白 */}
+                    <div className="flex-1 overflow-y-auto pb-safe">
                         
-                        {/* 標題 */}
-                        <h2 className="text-sm font-bold text-gray-600 mb-2">目標學生 (可多選)</h2>
-
-                        {/* 學生名單展開區：按鈕寬度再縮小，gap 也微縮以容納更多按鈕 */}
-                        <div className="flex flex-wrap gap-1.5 pb-2">
-                            {displayStudents.map(student => {
-                                const isBoy = BOYS_LIST.includes(student);
-                                const isSelected = selectedStudents.includes(student) && !isWholeClass;
-                                
-                                // 分離座號與姓名，並將姓名第二個字遮蔽為 "○"
-                                const [id, name] = student.split('-');
-                                const maskedName = name ? name.substring(0, 1) + '○' + name.substring(2) : student;
-                                // 依照需求，按鈕上僅顯示遮蔽後的姓名
-                                const displayText = maskedName;
-
-                                return (
-                                    <button
-                                        key={student}
-                                        onClick={() => toggleStudent(student)}
-                                        className={`py-1.5 px-2 rounded-lg text-[13px] sm:text-sm font-medium tracking-tight transition-colors w-auto border ${
-                                            isSelected
-                                                ? (isBoy ? 'bg-blue-500 text-white border-blue-600 shadow-inner' : 'bg-pink-500 text-white border-pink-600 shadow-inner') 
-                                                : (isBoy ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' : 'bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-100')
-                                        }`}
-                                    >
-                                        {displayText}
-                                    </button>
-                                );
-                            })}
+                        {/* 上半部：週曆與目標學生 */}
+                        <div className="p-3 bg-white border-b-2 border-gray-300">
                             
-                            {/* 全班按鈕接在最後一個學生之後 */}
-                            <button
-                                onClick={toggleWholeClass}
-                                className={`py-1.5 px-2 rounded-lg text-[13px] sm:text-sm font-medium tracking-tight transition-colors w-auto border ${
-                                    isWholeClass 
-                                        ? 'bg-purple-600 text-white border-purple-700 shadow-inner' 
-                                        : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-200'
-                                }`}
-                            >
-                                全班
-                            </button>
-                        </div>
-                    </div>
+                            {/* 修改後的週曆元件：垂直綁定星期與日期確保對齊 */}
+                            <div className="bg-white p-2 pb-3 rounded-xl border border-gray-200 shadow-sm mb-4">
+                                <div className="flex items-end justify-between">
+                                    {/* 上一週按鈕 */}
+                                    <button onClick={handlePrevWeek} className="p-1 mb-0.5 text-gray-400 hover:text-black focus:outline-none shrink-0">
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                    </button>
+                                    
+                                    {/* 日期與星期垂直對齊群組 */}
+                                    <div className="flex-1 flex justify-between px-1 sm:px-3">
+                                        {weekDays.map((date, i) => {
+                                            const isSelected = date.toDateString() === selectedDate.toDateString();
+                                            const isToday = date.toDateString() === new Date().toDateString();
+                                            const dayOfWeek = date.getDay() || 7; // 將0(日)轉換為7以便排序
+                                            const dayLabels = ['日', '一', '二', '三', '四', '五', '六', '日'];
+                                            
+                                            return (
+                                                <div key={date.toISOString()} className="flex flex-col items-center gap-1.5">
+                                                    <span className={`text-[11px] font-bold ${dayOfWeek === 6 ? 'text-green-500' : dayOfWeek === 7 ? 'text-red-500' : 'text-gray-500'}`}>
+                                                        {dayLabels[dayOfWeek]}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setSelectedDate(date)}
+                                                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold transition-colors
+                                                            ${isSelected ? 'bg-blue-500 text-white shadow-md' : 'hover:bg-gray-100'}
+                                                            ${!isSelected && isToday ? 'ring-2 ring-blue-300' : ''}
+                                                            ${!isSelected && dayOfWeek === 6 ? 'text-green-600' : ''}
+                                                            ${!isSelected && dayOfWeek === 7 ? 'text-red-600' : ''}
+                                                            ${!isSelected && dayOfWeek < 6 && !isToday ? 'text-gray-700' : ''}
+                                                        `}
+                                                    >
+                                                        {date.getDate()}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
 
-                    {/* 下半部：表單與操作 (佔另一半) */}
-                    <div className="flex-1 flex flex-col p-3 bg-gray-50 overflow-y-auto">
-                        
-                        {/* 1. 聯絡對象與訪談者 */}
-                        <div className="shrink-0 mb-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-bold text-gray-600">聯絡對象</span>
-                                {CONTACT_OPTIONS.map(contact => (
-                                    <button
-                                        key={contact}
-                                        onClick={() => toggleContact(contact)}
-                                        className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
-                                            selectedContacts.includes(contact)
-                                                ? 'bg-green-500 text-white shadow-md'
-                                                : 'bg-white border border-gray-300 text-gray-700'
-                                        }`}
-                                    >
-                                        {contact}
+                                    {/* 下一週按鈕 */}
+                                    <button onClick={handleNextWeek} className="p-1 mb-0.5 text-gray-400 hover:text-black focus:outline-none shrink-0">
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                                     </button>
-                                ))}
-                                
-                                <span className="text-sm font-bold text-gray-600 ml-2">訪談者</span>
-                                {INTERVIEWER_OPTIONS.map(interviewer => (
-                                    <button
-                                        key={interviewer}
-                                        onClick={() => setSelectedInterviewer(interviewer)}
-                                        className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
-                                            selectedInterviewer === interviewer
-                                                ? 'bg-orange-500 text-white shadow-md'
-                                                : 'bg-white border border-gray-300 text-gray-700'
-                                        }`}
-                                    >
-                                        {interviewer}
-                                    </button>
-                                ))}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* 週曆元件 (從上半部移至此處) */}
-                        <div className="shrink-0 bg-white p-2 pb-3 rounded-xl border border-gray-200 shadow-sm mb-3">
-                            <div className="flex items-end justify-between">
-                                {/* 上一週按鈕 */}
-                                <button onClick={handlePrevWeek} className="p-1 mb-0.5 text-gray-400 hover:text-black focus:outline-none shrink-0">
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                            {/* 標題與收合按鈕 */}
+                            <div className="flex items-center gap-2 mb-2">
+                                <h2 className="text-sm font-bold text-gray-600">目標學生 (可多選)</h2>
+                                <button
+                                    onClick={() => setIsStudentListExpanded(!isStudentListExpanded)}
+                                    className="w-5 h-5 flex items-center justify-center bg-gray-200 text-gray-600 rounded-full text-sm font-bold hover:bg-gray-300 transition-colors focus:outline-none"
+                                >
+                                    {isStudentListExpanded ? '-' : '+'}
                                 </button>
-                                
-                                {/* 日期與星期垂直對齊群組 */}
-                                <div className="flex-1 flex justify-between px-1 sm:px-3">
-                                    {weekDays.map((date, i) => {
-                                        const isSelected = date.toDateString() === selectedDate.toDateString();
-                                        const isToday = date.toDateString() === new Date().toDateString();
-                                        const dayOfWeek = date.getDay() || 7; // 將0(日)轉換為7以便排序
-                                        const dayLabels = ['日', '一', '二', '三', '四', '五', '六', '日'];
+                            </div>
+
+                            {/* 學生名單展開區 */}
+                            {isStudentListExpanded && (
+                                <div className="flex flex-wrap gap-1.5 pb-1">
+                                    {displayStudents.map(student => {
+                                        const isBoy = BOYS_LIST.includes(student);
+                                        const isSelected = selectedStudents.includes(student) && !isWholeClass;
+                                        
+                                        // 分離座號與姓名，並將姓名第二個字遮蔽為 "○"
+                                        const [id, name] = student.split('-');
+                                        const maskedName = name ? name.substring(0, 1) + '○' + name.substring(2) : student;
                                         
                                         return (
-                                            <div key={date.toISOString()} className="flex flex-col items-center gap-1.5">
-                                                <span className={`text-[11px] font-bold ${dayOfWeek === 6 ? 'text-green-500' : dayOfWeek === 7 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                    {dayLabels[dayOfWeek]}
-                                                </span>
-                                                <button
-                                                    onClick={() => setSelectedDate(date)}
-                                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-bold transition-colors
-                                                        ${isSelected ? 'bg-blue-500 text-white shadow-md' : 'hover:bg-gray-100'}
-                                                        ${!isSelected && isToday ? 'ring-2 ring-blue-300' : ''}
-                                                        ${!isSelected && dayOfWeek === 6 ? 'text-green-600' : ''}
-                                                        ${!isSelected && dayOfWeek === 7 ? 'text-red-600' : ''}
-                                                        ${!isSelected && dayOfWeek < 6 && !isToday ? 'text-gray-700' : ''}
-                                                    `}
-                                                >
-                                                    {date.getDate()}
-                                                </button>
-                                            </div>
+                                            <button
+                                                key={student}
+                                                onClick={() => toggleStudent(student)}
+                                                className={`py-1.5 px-2 rounded-lg text-[13px] sm:text-sm font-medium tracking-tight transition-colors w-auto border ${
+                                                    isSelected
+                                                        ? (isBoy ? 'bg-blue-500 text-white border-blue-600 shadow-inner' : 'bg-pink-500 text-white border-pink-600 shadow-inner') 
+                                                        : (isBoy ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' : 'bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-100')
+                                                }`}
+                                            >
+                                                {maskedName}
+                                            </button>
                                         );
                                     })}
-                                </div>
-
-                                {/* 下一週按鈕 */}
-                                <button onClick={handleNextWeek} className="p-1 mb-0.5 text-gray-400 hover:text-black focus:outline-none shrink-0">
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* 2. 內容要點 (結合日期下拉選單與加入按鈕) */}
-                        <div className="flex-1 flex flex-col mb-3 min-h-[100px]">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <h2 className="text-sm font-bold text-gray-600">內容要點</h2>
-                                <div className="flex items-center gap-1 ml-auto">
-                                    <select 
-                                        value={selectedPeriod} 
-                                        onChange={(e) => setSelectedPeriod(e.target.value)} 
-                                        className="text-xs p-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                    >
-                                        {PERIOD_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                    </select>
-                                    <select 
-                                        value={selectedTime} 
-                                        onChange={(e) => setSelectedTime(e.target.value)} 
-                                        className="text-xs p-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                    >
-                                        {TIME_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                    </select>
-                                    <button 
-                                        onClick={handleAddContext} 
-                                        className="bg-blue-500 text-white text-xs px-2 py-1.5 rounded shadow hover:bg-blue-600 active:bg-blue-700 transition-colors font-bold whitespace-nowrap"
-                                    >
-                                        加入指定日期時間
-                                    </button>
-                                </div>
-                            </div>
-                            <textarea
-                                ref={textareaRef}
-                                value={behaviorText}
-                                onChange={(e) => setBehaviorText(e.target.value)}
-                                className="flex-1 w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 text-base leading-relaxed"
-                                placeholder="請輸入內容要點... (利用上方按鈕可插入時間到游標處)"
-                            />
-                        </div>
-
-                        {/* 連絡事項 (AI按鈕取代標題) */}
-                        <div className="shrink-0 mb-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                            <button
-                                onClick={handleGenerateSummary}
-                                disabled={isSummarizing || !behaviorText.trim()}
-                                className={`px-3 py-2 rounded-lg text-xs font-bold shadow transition-colors flex items-center justify-center gap-1 whitespace-nowrap w-fit ${
-                                    isSummarizing || !behaviorText.trim() 
-                                        ? 'bg-gray-300 text-gray-500' 
-                                        : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:opacity-90 active:scale-95'
-                                }`}
-                            >
-                                {isSummarizing ? (
-                                    <span className="flex items-center gap-1">
-                                        <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        AI 思考中
-                                    </span>
-                                ) : '✨ 生成連絡事項'}
-                            </button>
-                            <input
-                                type="text"
-                                value={summaryText}
-                                onChange={(e) => setSummaryText(e.target.value)}
-                                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm font-medium text-gray-800"
-                                placeholder="點選左側按鈕由 AI 生成，或在此手動輸入..."
-                            />
-                        </div>
-
-                        {/* 3. 訪談方式、記錄分類開關 & 完成按鈕 */}
-                        <div className="shrink-0 space-y-3 pb-safe">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-bold text-gray-600 whitespace-nowrap">訪談方式</span>
-                                {METHOD_OPTIONS.map(method => (
+                                    
+                                    {/* 全班按鈕接在最後一個學生之後 */}
                                     <button
-                                        key={method}
-                                        onClick={() => setSelectedMethod(method)}
-                                        className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
-                                            selectedMethod === method
-                                                ? 'bg-indigo-500 text-white shadow-md'
-                                                : 'bg-white border border-gray-300 text-gray-700'
+                                        onClick={toggleWholeClass}
+                                        className={`py-1.5 px-2 rounded-lg text-[13px] sm:text-sm font-medium tracking-tight transition-colors w-auto border ${
+                                            isWholeClass 
+                                                ? 'bg-purple-600 text-white border-purple-700 shadow-inner' 
+                                                : 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-200'
                                         }`}
                                     >
-                                        {method}
+                                        全班
                                     </button>
-                                ))}
+                                </div>
+                            )}
+                        </div>
 
-                                {/* 記錄分類切換開關 */}
-                                <div className="ml-auto flex items-center gap-2">
+                        {/* 下半部：表單操作區 */}
+                        <div className="p-3 bg-gray-50 flex flex-col gap-3">
+                            
+                            {/* 1. 聯絡對象與訪談者 (分為兩行) */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-600">聯絡對象</span>
+                                    {CONTACT_OPTIONS.map(contact => (
+                                        <button
+                                            key={contact}
+                                            onClick={() => toggleContact(contact)}
+                                            className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
+                                                selectedContacts.includes(contact)
+                                                    ? 'bg-green-500 text-white shadow-md'
+                                                    : 'bg-white border border-gray-300 text-gray-700'
+                                            }`}
+                                        >
+                                            {contact}
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-600">訪談者</span>
+                                    <select
+                                        value={selectedInterviewer}
+                                        onChange={(e) => setSelectedInterviewer(e.target.value)}
+                                        className="py-1 px-2 border border-gray-300 rounded bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    >
+                                        {INTERVIEWER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* 2. 內容要點 (結合日期下拉選單與加入按鈕) */}
+                            <div className="flex flex-col">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <h2 className="text-sm font-bold text-gray-600">內容要點</h2>
+                                    <div className="flex items-center gap-1 ml-auto">
+                                        <select 
+                                            value={selectedPeriod} 
+                                            onChange={(e) => setSelectedPeriod(e.target.value)} 
+                                            className="text-xs p-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        >
+                                            {PERIOD_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                        <select 
+                                            value={selectedTime} 
+                                            onChange={(e) => setSelectedTime(e.target.value)} 
+                                            className="text-xs p-1 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        >
+                                            {TIME_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                        <button 
+                                            onClick={handleAddContext} 
+                                            className="bg-blue-500 text-white text-xs px-2 py-1.5 rounded shadow hover:bg-blue-600 active:bg-blue-700 transition-colors font-bold whitespace-nowrap"
+                                        >
+                                            加入指定日期時間
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea
+                                    ref={textareaRef}
+                                    value={behaviorText}
+                                    onChange={(e) => setBehaviorText(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 text-base leading-relaxed min-h-[120px]"
+                                    placeholder="請輸入內容要點... (利用上方按鈕可插入時間到游標處)"
+                                />
+                            </div>
+
+                            {/* 連絡事項 (AI按鈕取代標題) */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <button
+                                    onClick={handleGenerateSummary}
+                                    disabled={isSummarizing || !behaviorText.trim()}
+                                    className={`px-3 py-2 rounded-lg text-xs font-bold shadow transition-colors flex items-center justify-center gap-1 whitespace-nowrap w-fit ${
+                                        isSummarizing || !behaviorText.trim() 
+                                            ? 'bg-gray-300 text-gray-500' 
+                                            : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:opacity-90 active:scale-95'
+                                    }`}
+                                >
+                                    {isSummarizing ? (
+                                        <span className="flex items-center gap-1">
+                                            <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            AI 思考中
+                                        </span>
+                                    ) : '✨ 生成連絡事項'}
+                                </button>
+                                <input
+                                    type="text"
+                                    value={summaryText}
+                                    onChange={(e) => setSummaryText(e.target.value)}
+                                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm font-medium text-gray-800"
+                                    placeholder="點選左側按鈕由 AI 生成，或在此手動輸入..."
+                                />
+                            </div>
+
+                            {/* 3. 訪談方式、記錄分類開關 & 完成按鈕 */}
+                            <div className="flex flex-col gap-3">
+                                
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-600 whitespace-nowrap">訪談方式</span>
+                                    {METHOD_OPTIONS.map(method => (
+                                        <button
+                                            key={method}
+                                            onClick={() => setSelectedMethod(method)}
+                                            className={`py-1.5 px-3 rounded-full text-sm font-medium transition-colors ${
+                                                selectedMethod === method
+                                                    ? 'bg-indigo-500 text-white shadow-md'
+                                                    : 'bg-white border border-gray-300 text-gray-700'
+                                            }`}
+                                        >
+                                            {/* 按鈕僅顯示前兩個字，如：電話 */}
+                                            {method.substring(0, 2)}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* 記錄分類切換開關 (移到獨立一行) */}
+                                <div className="flex items-center gap-2">
                                     <span className="text-sm font-bold text-gray-600 whitespace-nowrap">記錄分類</span>
                                     <div 
                                         onClick={() => setRecordCategory(prev => prev === "日常表現" ? "輔導訪談" : "日常表現")}
@@ -563,17 +576,17 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <button
-                                onClick={handleSubmit}
-                                disabled={isSubmitting}
-                                className={`w-full py-4 rounded-xl text-lg font-bold shadow-lg transition-transform active:scale-95 ${
-                                    isSubmitting ? 'bg-gray-400 text-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'
-                                }`}
-                            >
-                                {isSubmitting ? '傳送資料中...' : '完 成'}
-                            </button>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={isSubmitting}
+                                    className={`w-full py-4 mt-1 rounded-xl text-lg font-bold shadow-lg transition-transform active:scale-95 ${
+                                        isSubmitting ? 'bg-gray-400 text-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    }`}
+                                >
+                                    {isSubmitting ? '傳送資料中...' : '完 成'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
