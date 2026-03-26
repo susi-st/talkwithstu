@@ -53,6 +53,34 @@
         // 新增訪談方式選項
         const METHOD_OPTIONS = ["電話訪談", "個別訪談", "家庭訪視", "團體輔導"];
 
+        // 依據目前時間自動判斷節次與狀態
+        const getCurrentPeriodAndTime = () => {
+            const now = new Date();
+            const mins = now.getHours() * 60 + now.getMinutes();
+
+            if (mins < 450) return { p: "早修", t: "上課前" };      // < 07:30
+            if (mins < 480) return { p: "早修", t: "上課期間" };    // 07:30 - 08:00
+            if (mins < 495) return { p: "早修", t: "下課後" };      // 08:00 - 08:15
+            if (mins < 540) return { p: "第一節", t: "上課期間" };  // 08:15 - 09:00
+            if (mins < 550) return { p: "第一節", t: "下課後" };    // 09:00 - 09:10
+            if (mins < 595) return { p: "第二節", t: "上課期間" };  // 09:10 - 09:55
+            if (mins < 605) return { p: "第二節", t: "下課後" };    // 09:55 - 10:05
+            if (mins < 650) return { p: "第三節", t: "上課期間" };  // 10:05 - 10:50
+            if (mins < 660) return { p: "第三節", t: "下課後" };    // 10:50 - 11:00
+            if (mins < 705) return { p: "第四節", t: "上課期間" };  // 11:00 - 11:45
+            if (mins < 720) return { p: "第四節", t: "下課後" };    // 11:45 - 12:00
+            if (mins < 780) return { p: "午休", t: "上課期間" };    // 12:00 - 13:00
+            if (mins < 790) return { p: "午休", t: "下課後" };      // 13:00 - 13:10
+            if (mins < 835) return { p: "第五節", t: "上課期間" };  // 13:10 - 13:55
+            if (mins < 845) return { p: "第五節", t: "下課後" };    // 13:55 - 14:05
+            if (mins < 890) return { p: "第六節", t: "上課期間" };  // 14:05 - 14:50
+            if (mins < 900) return { p: "第六節", t: "下課後" };    // 14:50 - 15:00
+            if (mins < 945) return { p: "第七節", t: "上課期間" };  // 15:00 - 15:45
+            if (mins < 960) return { p: "第七節", t: "下課後" };    // 15:45 - 16:00
+            if (mins < 1005) return { p: "第八節", t: "上課期間" }; // 16:00 - 16:45
+            return { p: "第八節", t: "下課後" };                    // >= 16:45
+        };
+
         function App() {
             const [selectedStudents, setSelectedStudents] = useState([]);
             const [isWholeClass, setIsWholeClass] = useState(false);
@@ -77,9 +105,9 @@
                 return d;
             });
 
-            // 下拉選單狀態
-            const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[1]); // 預設: 第一節
-            const [selectedTime, setSelectedTime] = useState(TIME_OPTIONS[1]);     // 預設: 上課期間
+            // 下拉選單狀態：自動根據當前時間初始化
+            const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriodAndTime().p); 
+            const [selectedTime, setSelectedTime] = useState(getCurrentPeriodAndTime().t);     
 
             const [selectedMethod, setSelectedMethod] = useState("個別訪談"); // 預設: 個別訪談
             const [recordCategory, setRecordCategory] = useState("日常表現"); // 預設：日常表現
@@ -277,8 +305,12 @@
                         setSelectedContacts([CONTACT_OPTIONS[0]]); // 重置回預設：學生
                         setSelectedInterviewer(INTERVIEWER_OPTIONS[0]); // 重置回預設：導師
                         setSelectedDate(new Date());
-                        setSelectedPeriod(PERIOD_OPTIONS[1]);
-                        setSelectedTime(TIME_OPTIONS[1]);
+                        
+                        // 重置時間選項：重新抓取當下時間
+                        const currentTime = getCurrentPeriodAndTime();
+                        setSelectedPeriod(currentTime.p);
+                        setSelectedTime(currentTime.t);
+
                         setSelectedMethod("個別訪談");
                         setRecordCategory("日常表現");
                     } else {
